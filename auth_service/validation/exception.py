@@ -1,0 +1,2 @@
+class FaceValidationError(Exception):
+    pass
