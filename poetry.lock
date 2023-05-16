@@ -138,7 +138,7 @@ tqdm = "^4.31.1"
 type = "git"
 url = "https://github.com/Tvo-Po/Silent-Face-Anti-Spoofing.git"
 reference = "HEAD"
-resolved_reference = "e13e9a8da660270d630108eb55f18383dcbc704b"
+resolved_reference = "ea5083138a3359f03ceafcbeb27ff4beeb91332b"
 
 [[package]]
 name = "filelock"
