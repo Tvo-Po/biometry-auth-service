@@ -32,7 +32,4 @@ def validate_liveness(image_path: Path) -> bool:
         img = cropper.crop(**param)
         prediction += model.predict(img, model_name.as_posix())
     return np.argmax(prediction) == 1
-
-
-if __name__ == '__main__':
-    print(validate_liveness(Path('/home/tvo-po/_Content/VKR/system/images/g.png')))
+                                                                                         

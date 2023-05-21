@@ -1,4 +1,5 @@
 from pathlib import Path
+
 import cv2
 
 
@@ -13,6 +14,7 @@ def validate_only_one_face_on_image(image_path: Path) -> bool:
         gray_image,
         scaleFactor=1.3,
         minNeighbors=3,
-        minSize=(30, 30),
+        minSize=(100, 100),
     )
     return len(faces) == 1
+                                                                                         

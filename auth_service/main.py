@@ -1,134 +1,86 @@
-from dataclasses import dataclass
-from multiprocessing import Manager, Process, Semaphore
-from multiprocessing.synchronize import Semaphore as SemaphoreType
+from dataclasses import asdict
 from pathlib import Path
+import tempfile
+from typing import Any
+from uuid import UUID
 
-from deepface import DeepFace
+from fastapi import FastAPI, Request, status, UploadFile
+from fastapi.responses import JSONResponse
 
-from config import settings
+from auth_service.face_processing.data import AuthenticationResult, IdetifiedEmotions, ProfilingRecommendation
 
-
-SEMAPHORE = Semaphore(settings.CONCURRENCY_LEVEL or 0)
-
-
-def is_faces_belong_to_same_person(given_face: Path, original_face: Path) -> bool:
-    return DeepFace.verify(
-        img1_path=given_face.as_posix(),
-        img2_path=original_face.as_posix(),
-        model_name='ArcFace',
-    )['verified']
+from .database import auth_db
+from .face_processing import verify
+from .validation import validation_pipeline
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class IdetifiedEmotions:
-    angry: float
-    disgust: float
-    fear: float
-    happy: float
-    sad: float
-    surprise: float
-    neutral: float
+app = FastAPI()
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class ProfilingRecommendation:
-    is_auth_recommended: bool
-    identified_emotions: IdetifiedEmotions
+class FailedValidationError(Exception):
+    pass
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class AuthenticationResult:
-    is_authenticated: bool
-    recommendation: ProfilingRecommendation | None = None
-    
+class FailedAuthError(Exception):
+    pass
 
-def identify_emotions(given_face: Path) -> IdetifiedEmotions:
-    return IdetifiedEmotions(
-        **DeepFace.analyze(
-            img_path=given_face.as_posix(),
-            actions=('emotion',),
-        )[0]['emotion']
+
+def authenticate(id: Any, given_face: Path):
+    tmp = tempfile.NamedTemporaryFile('wb')
+    tmp.write(auth_db.get_user_face(id))
+    if not validation_pipeline(given_face):
+        raise FailedValidationError
+    result = verify(given_face, Path(tmp.name))
+    if not result.is_authenticated:
+        raise FailedAuthError
+    return result
+
+
+def register(id: Any, original_face: Path):
+    if not validation_pipeline(original_face):
+        raise FailedValidationError
+    auth_db.save_user(id, original_face)
+
+
+@app.post('/authenticate')
+def authenticate_endpoint(id: int | UUID, face: UploadFile):
+    tmp = tempfile.NamedTemporaryFile('wb')
+    tmp.write(face.file.read())
+    original_face = Path(__file__).parent.parent.parent / 'images' / 'sc_t.png'
+    from .face_processing.profiling import identify_emotions
+    result = authenticate(id, original_face)
+    tmp.close()
+    r = AuthenticationResult(
+        is_authenticated=True,
+        recommendation=ProfilingRecommendation(
+            is_auth_recommended=True,
+            identified_emotions=identify_emotions(original_face)
+        ),
+    )
+    return asdict(r)
+
+
+@app.post('/register')
+def register_endpoint(id: int | UUID, face: UploadFile):
+    tmp = tempfile.NamedTemporaryFile('wb')
+    tmp.write(face.file.read())
+    original_face = Path(tmp.name)
+    register(id, original_face)
+    tmp.close()
+    return {'status': 'success'}
+
+
+@app.exception_handler(FailedValidationError)
+async def failed_validation_handler(request: Request, exc: FailedValidationError):
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={'status': "Face validation failed."}
     )
 
 
-def is_emotion_state_safe(emotions: IdetifiedEmotions) -> bool:
-    return (emotions.angry + emotions.disgust + emotions.fear) <= 0.75
-
-
-def parallel_verification(
-    given_face: Path,
-    original_face: Path,
-    return_dict: dict,
-    semaphore: SemaphoreType,
-):
-    semaphore.acquire()
-    return_dict['verification'] = is_faces_belong_to_same_person(given_face, original_face)
-    semaphore.release()
-
-
-def parallel_profiling(
-    given_face: Path,
-    return_dict: dict,
-    semaphore: SemaphoreType,
-) -> None:
-    semaphore.acquire()
-    emotions = identify_emotions(given_face)
-    emotion_side_auth = is_emotion_state_safe(emotions)
-    return_dict['profiling'] =ProfilingRecommendation(
-        is_auth_recommended=emotion_side_auth,
-        identified_emotions=emotions,
+@app.exception_handler(FailedAuthError)
+async def failed_authentication_handler(request: Request, exc: FailedAuthError):
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={'status': "Authentication failed."}
     )
-    semaphore.release()
-
-
-def authenticate(given_face: Path, original_face: Path) -> AuthenticationResult:
-    if settings.AUTH_MODE == 'sequential':
-        is_verificated = is_faces_belong_to_same_person(given_face, original_face)
-        if not is_verificated or settings.PROFILING_STATE == 'disabled':
-            return AuthenticationResult(is_authenticated=is_verificated)
-        emotions = identify_emotions(given_face)
-        emotion_side_auth = is_emotion_state_safe(emotions)
-        if settings.PROFILING_STATE == 'suggesting':
-            return AuthenticationResult(
-                is_authenticated=True,
-                recommendation=ProfilingRecommendation(
-                    is_auth_recommended=emotion_side_auth,
-                    identified_emotions=emotions,
-                )
-            )
-        if settings.PROFILING_STATE == 'restricting':
-            return AuthenticationResult(is_authenticated=emotion_side_auth)
-        assert False, "Unknown profiling state."
-    if settings.AUTH_MODE == 'parallel':
-        with Manager() as manager:
-            result_dict = manager.dict()
-            verification = Process(target=parallel_verification, args=(
-                given_face, original_face, result_dict, SEMAPHORE,
-            ))
-            verification.start()
-            profiling = Process(target=parallel_profiling, args=(
-                given_face, result_dict, SEMAPHORE,
-            ))
-            profiling.start()
-            verification.join()
-            profiling.join()
-            is_verificated = result_dict['verification']
-            profiling_recommendation = result_dict['profiling']
-        if settings.PROFILING_STATE == 'suggesting':
-            return AuthenticationResult(
-                is_authenticated=is_verificated,
-                recommendation=profiling_recommendation,
-            )
-        if settings.PROFILING_STATE == 'restricting':
-            return AuthenticationResult(
-                is_authenticated=is_verificated and 
-                profiling_recommendation.is_auth_recommended
-            )
-        assert False, "Unknown profiling state."
-    assert False, "Unknown auth mode."
-
-
-if __name__ == '__main__':
-    given = Path(__file__).parent.parent / 'images' / 'g.png'
-    orig = Path(__file__).parent.parent / 'images' / 'or.png'
-    print(authenticate(given, orig))

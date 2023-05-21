@@ -17,6 +17,14 @@ tensorflow = "2.8.0"
 deepface = "^0.0.79"
 protobuf = "~3.20.0"
 face-anti-spoofing = {git = "https://github.com/Tvo-Po/Silent-Face-Anti-Spoofing.git"}
+pymongo = {extras = ["srv"], version = "^4.3.3"}
+fastapi = "^0.95.1"
+uvicorn = {extras = ["standard"], version = "^0.22.0"}
+httpx = "^0.24.0"
+SQLAlchemy = "^2.0.13"
+python-multipart = "^0.0.6"
+Augmentor = "^0.2.12"
+matplotlib = "^3.7.1"
 
 
 [build-system]
