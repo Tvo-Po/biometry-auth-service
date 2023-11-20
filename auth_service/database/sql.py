@@ -1,7 +1,6 @@
-from pathlib import Path
 from typing import Any
 
-from sqlalchemy import create_engine, Column, select, String
+from sqlalchemy import create_engine, Column, LargeBinary, select
 from sqlalchemy.exc import NoSuchModuleError
 from sqlalchemy.orm import declarative_base, Session
 
@@ -16,16 +15,16 @@ try:
         __tablename__ = settings.TABLE_NAME
         
         id = Column(settings.ID_COLUMN_TYPE, primary_key=True)
-        originalFaceImage = Column(String(255))
+        originalFaceImage = Column(LargeBinary())
 
 except NoSuchModuleError:
     pass
 
 
 class SQLAuthDatabase:
-    def save_user(self, id, image_path: Path):
+    def save_user(self, id, image: bytes):
         with Session(engine) as session:
-            u = User(id=id, originalFaceImage=image_path.as_posix())
+            u = User(id=id, originalFaceImage=image)
             session.add(u)
             session.commit()
             
@@ -34,5 +33,4 @@ class SQLAuthDatabase:
             stmt = select(User).filter_by(id=id)
             result = session.execute(stmt)
             u = result.scalar_one()
-            with open(u.originalFaceImage, 'rb') as image:  # type: ignore
-                return image.read()
+        return u.originalFaceImage  # type: ignore

@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Protocol
 from urllib import parse
 
@@ -9,7 +8,7 @@ from .sql import SQLAuthDatabase
 
 
 class AuthDatabase(Protocol):
-    def save_user(self, id, image_path: Path): ...
+    def save_user(self, id, image: bytes): ...
     
     def get_user_face(self, id) -> bytes: ...
 

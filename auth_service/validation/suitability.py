@@ -1,16 +1,12 @@
-from pathlib import Path
+from insightface.face_image_quality import SER_FIQ
 
-import numpy as np
-from tensorflow import keras
-
-from auth_service.config import settings
+from auth_service.utils import byte_image_to_array
+from .exception import FailedValidationError
 
 
-MODEL = keras.models.load_model(settings.PROJECT_ROOT / 'suitability_model')
-
-
-def validate_image_suitability(image_path: Path) -> bool:
-    image = keras.utils.img_to_array(image_path.as_posix())
-    input_arr = np.array([keras.utils.img_to_array(image)])
-    return bool(round(MODEL.predict(input_arr)))
-                                                                                         
+def validate_image_suitability(face: bytes) -> None:
+    face_array = byte_image_to_array(face)
+    ser_fiq = SER_FIQ(gpu=None)  # type: ignore
+    aligned_face = ser_fiq.apply_mtcnn(face_array)
+    if ser_fiq.get_score(aligned_face) < 0.75:  # type: ignore
+        raise FailedValidationError("Low image quality for recognition")

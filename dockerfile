@@ -10,11 +10,23 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     POETRY_HOME="/opt/poetry" \
     POETRY_NO_INTERACTION=1
 
+RUN apk update && apk add --no-cache \
+            --allow-untrusted \
+            --repository \
+            http://dl-3.alpinelinux.org/alpine/edge/testing \
+            hdf5 \
+            hdf5-dev \
+            build-base
+
+RUN pip install tensorflow-io-gcs-filesystem
+
 RUN pip install "poetry==$POETRY_VERSION"
 
 COPY poetry.lock pyproject.toml /src/
 WORKDIR /src
 
 RUN poetry config virtualenvs.create false && poetry install --no-dev --no-ansi
+
+RUN apk --no-cache del build-base
 
 COPY . /src
