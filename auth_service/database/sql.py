@@ -10,10 +10,9 @@ try:
     engine = create_engine(settings.DATABASE_URL)
     Base = declarative_base()
 
-
     class User(Base):
         __tablename__ = settings.TABLE_NAME
-        
+
         id = Column(settings.ID_COLUMN_TYPE, primary_key=True)
         originalFaceImage = Column(LargeBinary())
 
@@ -27,7 +26,7 @@ class SQLAuthDatabase:
             u = User(id=id, originalFaceImage=image)
             session.add(u)
             session.commit()
-            
+
     def get_user_face(self, id: Any) -> bytes:
         with Session(engine) as session:
             stmt = select(User).filter_by(id=id)

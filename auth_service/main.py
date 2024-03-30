@@ -30,8 +30,7 @@ def register(id: Any, original_face: bytes) -> None:
 @app.exception_handler(FailedValidationError)
 async def failed_validation_handler(request: Request, exc: FailedValidationError):
     return JSONResponse(
-        status_code=status.HTTP_400_BAD_REQUEST,
-        content={'detail': exc.message}
+        status_code=status.HTTP_400_BAD_REQUEST, content={"detail": exc.message}
     )
 
 
@@ -39,7 +38,7 @@ async def failed_validation_handler(request: Request, exc: FailedValidationError
 async def failed_authentication_handler(request: Request, exc: FailedAuthError):
     return JSONResponse(
         status_code=status.HTTP_400_BAD_REQUEST,
-        content={'detail': "Authentication failed."}
+        content={"detail": "Authentication failed."},
     )
 
 
@@ -47,16 +46,15 @@ def _get_face(face_image: UploadFile) -> bytes:
     return face_image.file.read()
 
 
-@app.post('/register/{id}', responses={204: {'model': None}})
+@app.post("/register/{id}", responses={204: {"model": None}})
 def register_endpoint(
-    id: int | UUID,
-    face: bytes = Depends(_get_face, use_cache=False)
+    id: int | UUID, face: bytes = Depends(_get_face, use_cache=False)
 ):
     register(id, face)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@app.post('/authenticate/{id}')
+@app.post("/authenticate/{id}")
 def authenticate_endpoint(
     id: int | UUID,
     face: bytes = Depends(_get_face, use_cache=False),

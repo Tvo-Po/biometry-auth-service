@@ -9,11 +9,12 @@ def identify_emotions(given_face: bytes) -> IdetifiedEmotions:
     return IdetifiedEmotions(
         **DeepFace.analyze(
             img_path=given_face_array,
-            actions=('emotion',),
-        )[0]['emotion']
+            actions=("emotion",),
+        )[
+            0
+        ]["emotion"]
     )
 
 
 def is_emotion_state_safe(emotions: IdetifiedEmotions) -> bool:
     return (emotions.angry + emotions.disgust + emotions.fear) >= 0.75
-                                                                                         

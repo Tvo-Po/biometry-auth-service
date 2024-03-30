@@ -9,15 +9,15 @@ from .sql import SQLAuthDatabase
 
 class AuthDatabase(Protocol):
     def save_user(self, id, image: bytes): ...
-    
+
     def get_user_face(self, id) -> bytes: ...
 
 
 auth_db: AuthDatabase
 url = parse.urlparse(settings.DATABASE_URL)
-if url.scheme == 'mongodb':
+if url.scheme == "mongodb":
     auth_db = MongoAuthDatabase()
-elif url.scheme in {'http', 'https'}:
+elif url.scheme in {"http", "https"}:
     auth_db = APIAuthDatabase()
 else:
     auth_db = SQLAuthDatabase()

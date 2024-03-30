@@ -19,7 +19,7 @@ def _parallel_verification(
     semaphore: SemaphoreType,
 ):
     semaphore.acquire()
-    return_dict['verification'] = is_faces_belong_to_same_person(
+    return_dict["verification"] = is_faces_belong_to_same_person(
         given_face,
         original_face,
     )
@@ -34,7 +34,7 @@ def _parallel_profiling(
     semaphore.acquire()
     emotions = identify_emotions(given_face)
     emotion_side_auth = is_emotion_state_safe(emotions)
-    return_dict['profiling'] =ProfilingRecommendation(
+    return_dict["profiling"] = ProfilingRecommendation(
         is_auth_recommended=emotion_side_auth,
         identified_emotions=emotions,
     )
@@ -46,19 +46,19 @@ def _authenticate_sequential(
     original_face: bytes,
 ) -> AuthenticationResult:
     is_verificated = is_faces_belong_to_same_person(given_face, original_face)
-    if not is_verificated or settings.PROFILING_STATE == 'disabled':
+    if not is_verificated or settings.PROFILING_STATE == "disabled":
         return AuthenticationResult(is_authenticated=is_verificated)
     emotions = identify_emotions(given_face)
     emotion_side_auth = is_emotion_state_safe(emotions)
-    if settings.PROFILING_STATE == 'suggesting':
+    if settings.PROFILING_STATE == "suggesting":
         return AuthenticationResult(
             is_authenticated=True,
             recommendation=ProfilingRecommendation(
                 is_auth_recommended=emotion_side_auth,
                 identified_emotions=emotions,
-            )
+            ),
         )
-    if settings.PROFILING_STATE == 'restricting':
+    if settings.PROFILING_STATE == "restricting":
         return AuthenticationResult(is_authenticated=emotion_side_auth)
     assert False, "Unknown profiling state."
 
@@ -69,41 +69,52 @@ def _authenticate_parallel(
 ) -> AuthenticationResult:
     with Manager() as manager:
         result_dict = manager.dict()
-        verification = Process(target=_parallel_verification, args=(
-            given_face, original_face, result_dict, SEMAPHORE,
-        ))
+        verification = Process(
+            target=_parallel_verification,
+            args=(
+                given_face,
+                original_face,
+                result_dict,
+                SEMAPHORE,
+            ),
+        )
         verification.start()
-        profiling = Process(target=_parallel_profiling, args=(
-            given_face, result_dict, SEMAPHORE,
-        ))
+        profiling = Process(
+            target=_parallel_profiling,
+            args=(
+                given_face,
+                result_dict,
+                SEMAPHORE,
+            ),
+        )
         profiling.start()
         verification.join()
         profiling.join()
-        is_verificated: bool = result_dict['verification']  # type: ignore
-        untyped_recommendation = result_dict['profiling']  # type: ignore
+        is_verificated: bool = result_dict["verification"]  # type: ignore
+        untyped_recommendation = result_dict["profiling"]  # type: ignore
         profiling_recommendation = cast(
             ProfilingRecommendation,
             untyped_recommendation,
         )
-    if settings.PROFILING_STATE == 'suggesting':
+    if settings.PROFILING_STATE == "suggesting":
         return AuthenticationResult(
             is_authenticated=is_verificated,
             recommendation=profiling_recommendation,
         )
-    if settings.PROFILING_STATE == 'restricting':
+    if settings.PROFILING_STATE == "restricting":
         return AuthenticationResult(
-            is_authenticated=is_verificated and 
-            profiling_recommendation.is_auth_recommended
+            is_authenticated=is_verificated
+            and profiling_recommendation.is_auth_recommended
         )
     assert False, "Unknown profiling state."
-                                                                                         
+
 
 def verify(given_face: bytes, original_face: bytes) -> AuthenticationResult:
     result = None
-    if settings.AUTH_MODE == 'sequential':
+    if settings.AUTH_MODE == "sequential":
         result = _authenticate_sequential(given_face, original_face)
-    if settings.AUTH_MODE == 'parallel':
-       result = _authenticate_parallel(given_face, original_face)
+    if settings.AUTH_MODE == "parallel":
+        result = _authenticate_parallel(given_face, original_face)
     assert result is not None, "Unknown auth mode."
     if not result.is_authenticated:
         raise FailedAuthError
