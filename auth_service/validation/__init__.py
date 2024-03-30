@@ -6,4 +6,4 @@ from .suitability import validate_image_suitability
 def validation_pipeline(face: bytes) -> None:
     validate_only_one_face_on_image(face)
     validate_liveness(face)
-    # validate_image_suitability(face)
+    validate_image_suitability(face)

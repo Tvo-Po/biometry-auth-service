@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     @validator("DATABASE_URL")
     def validate_sql_url_fields(cls, url, values):
-        if not parse.urlparse(url).scheme in {"http", "https", "mongodb"}:
+        if parse.urlparse(url).scheme not in {"http", "https", "mongodb"}:
             if values["TABLE_NAME"] is None:
                 raise ValueError("Table name must be set if using relational db.")
             if values["ID_COLUMN_TYPE"] is None:
